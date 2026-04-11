@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MNC Chat</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+
+    <style>
+        /* CSS Reset & Variables */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: #4F46E5; /* Indigo */
+            --bg-color: #F3F4F6;
+            --chat-bg: #FFFFFF;
+            --text-main: #1F2937;
+            --text-light: #6B7280;
+            --msg-sent: #4F46E5;
+            --msg-received: #E5E7EB;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: var(--text-main);
+        }
+
+        /* The Main App Container */
+        .app-container {
+            width: 100%;
+            max-width: 450px;
+            height: 80vh;
+            background: var(--chat-bg);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- Login Screen --- */
+        #login-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            padding: 2rem;
+            text-align: center;
+        }
+        #login-screen i { font-size: 3rem; color: var(--primary); margin-bottom: 1rem; }
+        #login-screen h2 { margin-bottom: 1.5rem; }
+        .input-group {
+            display: flex;
+            width: 100%;
+            background: var(--bg-color);
+            border-radius: 8px;
+            padding: 0.5rem;
+            border: 1px solid transparent;
+            transition: border 0.3s;
+        }
+        .input-group:focus-within { border-color: var(--primary); }
+        .input-group input {
+            flex-grow: 1;
+            border: none;
+            background: transparent;
+            padding: 0.5rem;
+            outline: none;
+            font-family: inherit;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 0.75rem;
+            margin-top: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn-primary:hover { background: #4338CA; }
+
+        /* --- Chat Screen --- */
+        #chat-screen {
+            display: none; /* Hidden until connected */
+            flex-direction: column;
+            height: 100%;
+        }
+        .chat-header {
+            background: white;
+            padding: 1rem;
+            border-bottom: 1px solid #E5E7EB;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .recipient-input {
+            border: none;
+            background: var(--bg-color);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            outline: none;
+            font-size: 0.9rem;
+            width: 60%;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background-color: #FAFAFA;
+        }
+        
+        /* Message Bubbles */
+        .message {
+            max-width: 75%;
+            padding: 0.75rem 1rem;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+        .message.sent {
+            align-self: flex-end;
+            background-color: var(--msg-sent);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .message.received {
+            align-self: flex-start;
+            background-color: var(--msg-received);
+            color: var(--text-main);
+            border-bottom-left-radius: 4px;
+        }
+        .sender-name {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            margin-bottom: 2px;
+            margin-left: 2px;
+        }
+
+        /* Input Area */
+        .chat-input-area {
+            padding: 1rem;
+            background: white;
+            border-top: 1px solid #E5E7EB;
+            display: flex;
+            gap: 10px;
+        }
+        .chat-input-area input {
+            flex-grow: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid #E5E7EB;
+            border-radius: 24px;
+            outline: none;
+            transition: border 0.3s;
+        }
+        .chat-input-area input:focus { border-color: var(--primary); }
+        .send-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+        .send-btn:hover { transform: scale(1.05); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <div id="login-screen">
+            <i class="fa-solid fa-bolt"></i>
+            <h2>Join the Chat</h2>
+            <div class="input-group">
+                <i class="fa-solid fa-user" style="color: var(--text-light); font-size: 1rem; margin: auto 0.5rem;"></i>
+                <input type="text" id="myUsername" placeholder="Enter your username" autocomplete="off">
+            </div>
+            <button class="btn-primary" onclick="connect()">Connect Now</button>
+        </div>
+
+        <div id="chat-screen">
+            <div class="chat-header">
+                <div>
+                    <i class="fa-solid fa-circle" style="color: #10B981; font-size: 0.6rem; margin-right: 5px;"></i>
+                    <span id="displayUsername" style="font-weight: 600;">User</span>
+                </div>
+                <input type="text" id="recipientName" class="recipient-input" placeholder="Texting who? (@username)">
+            </div>
+            
+            <div id="messageArea" class="chat-messages">
+                </div>
+
+            <div class="chat-input-area">
+                <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off" onkeypress="handleEnter(event)">
+                <button class="send-btn" onclick="sendMessage()">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let stompClient = null;
+        let myUsername = "";
+
+        function connect() {
+            myUsername = document.getElementById('myUsername').value.trim();
+            if(!myUsername) return alert("Please enter a username!");
+
+            // Use relative path so it works on localhost AND Ngrok
+            let socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+
+            // Hide debug logs in the console to make it cleaner
+            stompClient.debug = null; 
+
+            stompClient.connect({}, function (frame) {
+                // UI Switch
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('chat-screen').style.display = 'flex';
+                document.getElementById('displayUsername').innerText = myUsername;
+                
+                // Subscribe to personal queue
+                stompClient.subscribe('/queue/' + myUsername, function (message) {
+                    let parsedMessage = JSON.parse(message.body);
+                    renderMessage(parsedMessage.sender, parsedMessage.content, 'received');
+                });
+            });
+        }
+
+        function sendMessage() {
+            let recipient = document.getElementById('recipientName').value.trim();
+            let content = document.getElementById('messageInput').value.trim();
+
+            if(stompClient && stompClient.connected && recipient && content) {
+                let chatMessage = {
+                    sender: myUsername,
+                    recipient: recipient,
+                    content: content
+                };
+                
+                stompClient.send("/app/chat.send", {}, JSON.stringify(chatMessage));
+                
+                // Render my own message on the right side
+                renderMessage("You", content, 'sent');
+                document.getElementById('messageInput').value = ''; // clear input
+            } else if (!recipient) {
+                alert("Please enter who you are texting in the top bar!");
+            }
+        }
+
+        // Allow sending by pressing "Enter" on the keyboard
+        function handleEnter(event) {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        }
+
+        function renderMessage(senderName, text, type) {
+            let messageArea = document.getElementById('messageArea');
+            
+            // Create container for the bubble
+            let messageWrapper = document.createElement('div');
+            messageWrapper.style.display = 'flex';
+            messageWrapper.style.flexDirection = 'column';
+            
+            // Create sender name label (only show if it's a received message)
+            if(type === 'received') {
+                let nameLabel = document.createElement('span');
+                nameLabel.className = 'sender-name';
+                nameLabel.innerText = senderName;
+                messageWrapper.appendChild(nameLabel);
+            }
+
+            // Create the bubble itself
+            let bubble = document.createElement('div');
+            bubble.className = `message ${type}`;
+            bubble.innerText = text;
+            
+            messageWrapper.appendChild(bubble);
+            messageArea.appendChild(messageWrapper);
+
+            // Auto-scroll to the bottom
+            messageArea.scrollTop = messageArea.scrollHeight;
+        }
+    </script>
+</body>
+</html>
